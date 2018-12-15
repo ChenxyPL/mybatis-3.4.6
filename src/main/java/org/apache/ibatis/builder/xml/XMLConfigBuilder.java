@@ -67,6 +67,8 @@ public class XMLConfigBuilder extends BaseBuilder {
   }
 
   public XMLConfigBuilder(Reader reader, String environment, Properties props) {
+    // XPathParser是用来解析xml文件的，XMLConfigBuilder、XMLMapperBuilder它们都是继承于BaseBuilder，xml的加载于解析委托给XPathParser
+    // XMLMapperEntityResolver是用来指定xml对应的XSD或DTD如何获取
     this(new XPathParser(reader, true, props, new XMLMapperEntityResolver()), environment, props);
   }
 
@@ -83,6 +85,7 @@ public class XMLConfigBuilder extends BaseBuilder {
   }
 
   private XMLConfigBuilder(XPathParser parser, String environment, Properties props) {
+    // 创建Configuration实例; 并将Configuration实例及Configuration的typeAliasRegistry、typeHandlerRegistry属性置为自身属性(这三个属性都是继承自BaseBuilder)
     super(new Configuration());
     ErrorContext.instance().resource("SQL Mapper Configuration");
     this.configuration.setVariables(props);
@@ -92,10 +95,11 @@ public class XMLConfigBuilder extends BaseBuilder {
   }
 
   public Configuration parse() {
-    if (parsed) {
+    if (parsed) { // 配置文件只能解析一次
       throw new BuilderException("Each XMLConfigBuilder can only be used once.");
     }
     parsed = true;
+    // parser.evalNode("/configuration") 从配置文件中获取configuration节点
     parseConfiguration(parser.evalNode("/configuration"));
     return configuration;
   }
@@ -103,13 +107,15 @@ public class XMLConfigBuilder extends BaseBuilder {
   private void parseConfiguration(XNode root) {
     try {
       //issue #117 read properties first
-      propertiesElement(root.evalNode("properties"));
-      Properties settings = settingsAsProperties(root.evalNode("settings"));
+      // root.evalNode("xxxx") 调用XML DOM的evaluate()方法，根据给定的节点表达式来计算指定的 XPath 表达式，
+      // 并且返回一个XPathResult对象，返回类型在Node.evalNode()方法中均被指定为NODE
+      propertiesElement(root.evalNode("properties")); // 加载properties节点
+      Properties settings = settingsAsProperties(root.evalNode("settings")); // 加载settings节点
       loadCustomVfs(settings);
-      typeAliasesElement(root.evalNode("typeAliases"));
-      pluginElement(root.evalNode("plugins"));
-      objectFactoryElement(root.evalNode("objectFactory"));
-      objectWrapperFactoryElement(root.evalNode("objectWrapperFactory"));
+      typeAliasesElement(root.evalNode("typeAliases")); // 加载解析别名 typeAliases
+      pluginElement(root.evalNode("plugins")); // 加载plugins节点
+      objectFactoryElement(root.evalNode("objectFactory")); // 加载objectFactory节点
+      objectWrapperFactoryElement(root.evalNode("objectWrapperFactory")); // 加载objectWrapperFactory节点
       reflectorFactoryElement(root.evalNode("reflectorFactory"));
       settingsElement(settings);
       // read it after objectFactory and objectWrapperFactory issue #631
@@ -126,6 +132,12 @@ public class XMLConfigBuilder extends BaseBuilder {
     if (context == null) {
       return new Properties();
     }
+    /*
+      settings节点配置样例:
+      <settings>
+        <setting name="cacheEnabled" value="true"/>
+      </settings>
+     */
     Properties props = context.getChildrenAsProperties();
     // Check that all settings are known to the configuration class
     MetaClass metaConfig = MetaClass.forClass(Configuration.class, localReflectorFactory);
@@ -138,6 +150,11 @@ public class XMLConfigBuilder extends BaseBuilder {
   }
 
   private void loadCustomVfs(Properties props) throws ClassNotFoundException {
+    /*
+      指定vfs的实现
+      VFS主要用来加载容器内的各种资源，比如jar或者class文件。mybatis提供了2个实现 JBoss6VFS 和 DefaultVFS，并提供了用户扩展点，用于自定义VFS实现，
+      加载顺序是自定义VFS实现 > 默认VFS实现 取第一个加载成功的，默认情况下会先加载JBoss6VFS，如果classpath下找不到jboss的vfs实现才会加载默认VFS实现
+     */
     String value = props.getProperty("vfsImpl");
     if (value != null) {
       String[] clazzes = value.split(",");
@@ -155,16 +172,30 @@ public class XMLConfigBuilder extends BaseBuilder {
     if (parent != null) {
       for (XNode child : parent.getChildren()) {
         if ("package".equals(child.getName())) {
+            /*
+                <typeAliases>
+                  <package name="domain.blog"/>
+                </typeAliases>
+                在没有注解的情况下，domain.blog包下的所有类都将使用类名的首字母小写作为别名
+                但是在底层里发现typeAliasRegistry.registerAlias(alias, clazz)方法会将 alias.toLowerCase(Locale.ENGLISH) 作为key
+             */
           String typeAliasPackage = child.getStringAttribute("name");
           configuration.getTypeAliasRegistry().registerAliases(typeAliasPackage);
         } else {
+            /*
+                <typeAliases>
+                  <typeAlias alias="Blog" type="domain.blog.Blog"/>
+                </typeAliases>
+             */
           String alias = child.getStringAttribute("alias");
           String type = child.getStringAttribute("type");
           try {
             Class<?> clazz = Resources.classForName(type);
             if (alias == null) {
+                // 默认使用clazz.getSimpleName()作为别名，若有Alias注解则使用注解值作为别名;然后再调用typeAliasRegistry.registerAlias(alias, clazz);
               typeAliasRegistry.registerAlias(clazz);
             } else {
+              // 将 alias.toLowerCase(Locale.ENGLISH) 作为key
               typeAliasRegistry.registerAlias(alias, clazz);
             }
           } catch (ClassNotFoundException e) {
@@ -176,10 +207,24 @@ public class XMLConfigBuilder extends BaseBuilder {
   }
 
   private void pluginElement(XNode parent) throws Exception {
+      /*
+        plugins的配置样例：
+        <plugins>
+            <plugin interceptor="org.apache.ibatis.builder.ExamplePlugin">
+                <property name="" value=""/>
+            </plugin>
+        </plugins>
+        插件在具体实现的时候，采用的是拦截器模式，要注册为mybatis插件，必须实现org.apache.ibatis.plugin.Interceptor接口，每个插件可以有自己的属性。
+        interceptor属性值既可以完整的类名，也可以是别名，只要别名在typealias中存在即可，如果启动时无法解析，会抛出ClassNotFound异常。
+        实例化插件后，将设置插件的属性赋值给插件实现类的属性字段
+        mybatis提供了两个内置的插件例子：org.apache.ibatis.plugin.PluginTest、org.apache.ibatis.builder.ExamplePlugin
+       */
     if (parent != null) {
       for (XNode child : parent.getChildren()) {
         String interceptor = child.getStringAttribute("interceptor");
         Properties properties = child.getChildrenAsProperties();
+        // resolveClass(interceptor) 其实就是先将interceptor当做别名到typeAliasRegistry中查找有没有对应的类，有则直接返回
+        // 若未查询到则使用Class.forName()创建
         Interceptor interceptorInstance = (Interceptor) resolveClass(interceptor).newInstance();
         interceptorInstance.setProperties(properties);
         configuration.addInterceptor(interceptorInstance);
@@ -188,6 +233,14 @@ public class XMLConfigBuilder extends BaseBuilder {
   }
 
   private void objectFactoryElement(XNode context) throws Exception {
+    /*
+      objectFactory的配置示例：
+      <objectFactory type="org.apache.ibatis.builder.ExampleObjectFactory">
+          <property name="" value=""></property>
+      </objectFactory>
+      什么是对象工厂？ MyBatis 每次创建结果对象的新实例时，它都会使用一个对象工厂（ObjectFactory）实例来完成。
+      默认的对象工厂DefaultObjectFactory做的仅仅是实例化目标类，要么通过默认构造方法，要么在参数映射存在的时候通过参数构造方法来实例化
+     */
     if (context != null) {
       String type = context.getStringAttribute("type");
       Properties properties = context.getChildrenAsProperties();
@@ -198,6 +251,10 @@ public class XMLConfigBuilder extends BaseBuilder {
   }
 
   private void objectWrapperFactoryElement(XNode context) throws Exception {
+    /*
+      objectWrapperFactory配置示例:
+      <objectWrapperFactory type="org.apache.ibatis.reflection.wrapper.DefaultObjectWrapperFactory" />
+     */
     if (context != null) {
       String type = context.getStringAttribute("type");
       ObjectWrapperFactory factory = (ObjectWrapperFactory) resolveClass(type).newInstance();
@@ -215,12 +272,22 @@ public class XMLConfigBuilder extends BaseBuilder {
 
   private void propertiesElement(XNode context) throws Exception {
     if (context != null) {
+      // 加载所有property子节点，并解析成Properties
+      /*
+        properties配置示例:
+          <properties resource="db.properties">
+            <property name="username" value="root"/>
+            <property name="password" value="123456"/>
+          </properties>
+       */
       Properties defaults = context.getChildrenAsProperties();
       String resource = context.getStringAttribute("resource");
       String url = context.getStringAttribute("url");
+      // resource和url不能同时设置
       if (resource != null && url != null) {
         throw new BuilderException("The properties element cannot specify both a URL and a resource based property file reference.  Please specify one or the other.");
       }
+      // 子节点配置会被覆盖
       if (resource != null) {
         defaults.putAll(Resources.getResourceAsProperties(resource));
       } else if (url != null) {
@@ -230,7 +297,16 @@ public class XMLConfigBuilder extends BaseBuilder {
       if (vars != null) {
         defaults.putAll(vars);
       }
+      /*
+        properties的配置规则：
+        1. 通过设置properties节点的url或resource属性从外部加载一个properties文件
+        2. 通过设置properties节点的property子节点进行配置，若子节点的key在外部properties文件中已存在，已外部properties文件为准
+        3. 通过编程方式定义的属性优先级最高
+        优先级： 编程方式 > 外部properties文件 > property子节点
+       */
+      // 设置到XPathParser
       parser.setVariables(defaults);
+      // 设置到Configuration
       configuration.setVariables(defaults);
     }
   }

@@ -229,13 +229,13 @@ public class XPathParser {
     // important: this must only be called AFTER common constructor
     try {
       DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-      factory.setValidating(validation);
+      factory.setValidating(validation); // 在解析xml时是否使用DTD验证，默认false
 
-      factory.setNamespaceAware(false);
-      factory.setIgnoringComments(true);
-      factory.setIgnoringElementContentWhitespace(false);
-      factory.setCoalescing(false);
-      factory.setExpandEntityReferences(true);
+      factory.setNamespaceAware(false); // 是否对命名空间支持，默认false
+      factory.setIgnoringComments(true); // 是否忽略注释，默认false
+      factory.setIgnoringElementContentWhitespace(false); // 是否忽略Element中的空格，默认false
+      factory.setCoalescing(false); // 是否将CDATA节点转换为Text节点，并将其附加到相邻（如果有）文本节点；默认false
+      factory.setExpandEntityReferences(true); // 是否扩展实体引用节点，默认false
 
       DocumentBuilder builder = factory.newDocumentBuilder();
       builder.setEntityResolver(entityResolver);
@@ -254,7 +254,7 @@ public class XPathParser {
         public void warning(SAXParseException exception) throws SAXException {
         }
       });
-      return builder.parse(inputSource);
+      return builder.parse(inputSource); // 读取xml转化为document
     } catch (Exception e) {
       throw new BuilderException("Error creating document instance.  Cause: " + e, e);
     }
