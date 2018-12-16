@@ -58,12 +58,15 @@ public class MapperRegistry {
   }
 
   public <T> void addMapper(Class<T> type) {
-    if (type.isInterface()) {
+    if (type.isInterface()) { // 必须是接口
       if (hasMapper(type)) {
+        // 不管通过何种方式配置Mapper，但是一个接口只能被解析一次
         throw new BindingException("Type " + type + " is already known to the MapperRegistry.");
       }
       boolean loadCompleted = false;
       try {
+        // 为mapper接口创建一个MapperProxyFactory代理
+        // knownMappers是MapperRegistry的主要字段，维护了Mapper接口和代理类的映射关系,key是mapper接口类，value是MapperProxyFactory
         knownMappers.put(type, new MapperProxyFactory<T>(type));
         // It's important that the type is added before the parser is run
         // otherwise the binding may automatically be attempted by the
@@ -72,6 +75,7 @@ public class MapperRegistry {
         parser.parse();
         loadCompleted = true;
       } finally {
+        // 剔除解析出现异常的接口
         if (!loadCompleted) {
           knownMappers.remove(type);
         }
@@ -90,10 +94,21 @@ public class MapperRegistry {
    * @since 3.2.2
    */
   public void addMappers(String packageName, Class<?> superType) {
+    /*
+      mybatis框架提供的搜索classpath下指定package以及子package中符合条件(注解或者继承于某个类/接口)的类，
+      默认使用Thread.currentThread().getContextClassLoader()返回的加载器,和spring的工具类殊途同归。
+     */
     ResolverUtil<Class<?>> resolverUtil = new ResolverUtil<Class<?>>();
+    /*
+      ResolverUtil.IsA是一个内部类，实现了ResolverUtil.Test接口
+      resolverUtil.find(Test test, String packageName)的作用就是在packageName包及子包下查找满足test的matches方法的所有类
+      ResolverUtil.IsA的matches方法就是判断当前类是不是传入的superType的子类
+     */
     resolverUtil.find(new ResolverUtil.IsA(superType), packageName);
+    // 所有匹配的class都被存储在ResolverUtil.matches字段中
     Set<Class<? extends Class<?>>> mapperSet = resolverUtil.getClasses();
     for (Class<?> mapperClass : mapperSet) {
+      //调用addMapper方法进行具体的mapper类/接口解析
       addMapper(mapperClass);
     }
   }

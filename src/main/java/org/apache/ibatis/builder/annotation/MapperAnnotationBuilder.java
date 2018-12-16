@@ -103,15 +103,18 @@ public class MapperAnnotationBuilder {
 
   public MapperAnnotationBuilder(Configuration configuration, Class<?> type) {
     String resource = type.getName().replace('.', '/') + ".java (best guess)";
+    // MapperBuilderAssistant和XMLConfigBuilder一样，都是继承于BaseBuilder。
     this.assistant = new MapperBuilderAssistant(configuration, resource);
     this.configuration = configuration;
     this.type = type;
 
+    // Select.class/Insert.class等注解指示该方法对应的真实sql语句类型分别是select/insert
     sqlAnnotationTypes.add(Select.class);
     sqlAnnotationTypes.add(Insert.class);
     sqlAnnotationTypes.add(Update.class);
     sqlAnnotationTypes.add(Delete.class);
 
+    // SelectProvider.class/InsertProvider.class主要用于动态SQL，它们允许你指定一个类名和一个方法在具体执行时返回要运行的SQL语句
     sqlProviderAnnotationTypes.add(SelectProvider.class);
     sqlProviderAnnotationTypes.add(InsertProvider.class);
     sqlProviderAnnotationTypes.add(UpdateProvider.class);
@@ -120,9 +123,11 @@ public class MapperAnnotationBuilder {
 
   public void parse() {
     String resource = type.toString();
+    // 首先根据mapper接口的字符串表示判断是否已经加载,避免重复加载
     if (!configuration.isResourceLoaded(resource)) {
       loadXmlResource();
       configuration.addLoadedResource(resource);
+      // 每个mapper文件自成一个namespace，通常自动匹配就是这么来的，约定俗成
       assistant.setCurrentNamespace(type.getName());
       parseCache();
       parseCacheRef();
@@ -170,7 +175,7 @@ public class MapperAnnotationBuilder {
       }
       if (inputStream != null) {
         XMLMapperBuilder xmlParser = new XMLMapperBuilder(inputStream, assistant.getConfiguration(), xmlResource, configuration.getSqlFragments(), type.getName());
-        xmlParser.parse();
+        xmlParser.parse(); // 真正解析Mapper.xml
       }
     }
   }
@@ -214,6 +219,7 @@ public class MapperAnnotationBuilder {
   }
 
   private String parseResultMap(Method method) {
+    // 获取方法的返回类型
     Class<?> returnType = getReturnType(method);
     ConstructorArgs args = method.getAnnotation(ConstructorArgs.class);
     Results results = method.getAnnotation(Results.class);
@@ -265,6 +271,7 @@ public class MapperAnnotationBuilder {
 
   private Discriminator applyDiscriminator(String resultMapId, Class<?> resultType, TypeDiscriminator discriminator) {
     if (discriminator != null) {
+      // 对于鉴别器来说，和XML配置的差别在于xml中可以外部公用的resultMap,在注解中，则只提供了内嵌式的resultMap定义
       String column = discriminator.column();
       Class<?> javaType = discriminator.javaType() == void.class ? String.class : discriminator.javaType();
       JdbcType jdbcType = discriminator.jdbcType() == JdbcType.UNDEFINED ? null : discriminator.jdbcType();
@@ -274,6 +281,9 @@ public class MapperAnnotationBuilder {
       Case[] cases = discriminator.cases();
       Map<String, String> discriminatorMap = new HashMap<String, String>();
       for (Case c : cases) {
+        // 从内部实现的角度,因为内嵌式的resultMap定义也会创建resultMap,所以XML的实现也一样，
+        // 对于内嵌式鉴别器每个分支resultMap,其命名为映射方法的resultMapId-Case.value()。
+        // 这样在运行时，只要知道resultMap中包含了鉴别器之后，获取具体的鉴别器映射就很简单了，map.get()一下就得到了。
         String value = c.value();
         String caseResultMapId = resultMapId + "-" + value;
         discriminatorMap.put(value, caseResultMapId);
@@ -284,8 +294,12 @@ public class MapperAnnotationBuilder {
   }
 
   void parseStatement(Method method) {
+    // 获取参数类型,如果有多个参数(不包含RowBounds.class、ResultHandler.class),返回ParamMap.class，ParamMap是一个继承于HashMap的类
+    // 否则返回实际类型
     Class<?> parameterTypeClass = getParameterType(method);
     LanguageDriver languageDriver = getLanguageDriver(method);
+    // 获取方法的SqlSource对象,只有指定了@Select/@Insert/@Update/@Delete或者对应的Provider的方法才会被当作mapper,
+    // 否则只是和mapper文件中对应语句的一个运行时占位符
     SqlSource sqlSource = getSqlSourceFromAnnotations(method, parameterTypeClass, languageDriver);
     if (sqlSource != null) {
       Options options = method.getAnnotation(Options.class);
@@ -332,6 +346,9 @@ public class MapperAnnotationBuilder {
         resultSetType = options.resultSetType();
       }
 
+      // 解析@ResultMap注解,如果有@ResultMap注解,就是用它，否则才解析@Results
+      // @ResultMap注解用于给@Select和@SelectProvider注解提供在xml配置的<resultMap>,
+      // 如果一个方法上同时出现@Results或者@ConstructorArgs等和结果映射有关的注解,那么@ResultMap会覆盖后面两者的注解
       String resultMapId = null;
       ResultMap resultMapAnnotation = method.getAnnotation(ResultMap.class);
       if (resultMapAnnotation != null) {

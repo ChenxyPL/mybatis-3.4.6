@@ -119,10 +119,10 @@ public class XMLConfigBuilder extends BaseBuilder {
       reflectorFactoryElement(root.evalNode("reflectorFactory"));
       settingsElement(settings);
       // read it after objectFactory and objectWrapperFactory issue #631
-      environmentsElement(root.evalNode("environments"));
-      databaseIdProviderElement(root.evalNode("databaseIdProvider"));
-      typeHandlerElement(root.evalNode("typeHandlers"));
-      mapperElement(root.evalNode("mappers"));
+      environmentsElement(root.evalNode("environments")); // 加载environments节点
+      databaseIdProviderElement(root.evalNode("databaseIdProvider")); // 加载databaseIdProvider节点
+      typeHandlerElement(root.evalNode("typeHandlers")); // 加载typeHandlers节点
+      mapperElement(root.evalNode("mappers")); // 加载mappers节点
     } catch (Exception e) {
       throw new BuilderException("Error parsing SQL Mapper Configuration. Cause: " + e, e);
     }
@@ -254,6 +254,8 @@ public class XMLConfigBuilder extends BaseBuilder {
     /*
       objectWrapperFactory配置示例:
       <objectWrapperFactory type="org.apache.ibatis.reflection.wrapper.DefaultObjectWrapperFactory" />
+      对象包装器工厂主要用来包装返回result对象，比如说可以用来设置某些敏感字段脱敏或者加密等。
+      默认对象包装器工厂是DefaultObjectWrapperFactory，也就是不使用包装器工厂
      */
     if (context != null) {
       String type = context.getStringAttribute("type");
@@ -345,16 +347,34 @@ public class XMLConfigBuilder extends BaseBuilder {
   }
 
   private void environmentsElement(XNode context) throws Exception {
+    /*
+      配置样例:
+      <environments default="development">
+          <environment id="development">
+              <transactionManager type="JDBC"/>
+              <dataSource type="POOLED">
+                  <property name="driver" value="com.mysql.jdbc.Driver"/>
+                  <property name="url" value="jdbc:mysql://localhost:3306/test?useUnicode=true"/>
+                  <property name="username" value="root"/>
+                  <property name="password" value="1234"/>
+              </dataSource>
+          </environment>
+      </environments>
+     */
     if (context != null) {
       if (environment == null) {
         environment = context.getStringAttribute("default");
       }
       for (XNode child : context.getChildren()) {
         String id = child.getStringAttribute("id");
+        // 查找指定的environment(environment.equals(id))
         if (isSpecifiedEnvironment(id)) {
+          // 事务配置并创建事务工厂
           TransactionFactory txFactory = transactionManagerElement(child.evalNode("transactionManager"));
+          // 数据源配置加载并实例化数据源, 数据源是必备的
           DataSourceFactory dsFactory = dataSourceElement(child.evalNode("dataSource"));
           DataSource dataSource = dsFactory.getDataSource();
+          // environmentBuilder的build()返回 Environment 实现意图？
           Environment.Builder environmentBuilder = new Environment.Builder(id)
               .transactionFactory(txFactory)
               .dataSource(dataSource);
@@ -365,8 +385,29 @@ public class XMLConfigBuilder extends BaseBuilder {
   }
 
   private void databaseIdProviderElement(XNode context) throws Exception {
+    /*
+      MyBatis 可以根据不同的数据库厂商执行不同的语句，这种多厂商的支持是基于映射语句中的 databaseId 属性。
+      MyBatis 会加载不带 databaseId 属性和带有匹配当前数据库 databaseId 属性的所有语句。
+      如果同时找到带有 databaseId 和不带 databaseId 的相同语句，则后者会被舍弃
+      配置示例:
+        <databaseIdProvider type="DB_VENDOR" />
+     */
     DatabaseIdProvider databaseIdProvider = null;
     if (context != null) {
+      /*
+        这里的 DB_VENDOR 会通过 DatabaseMetaData#getDatabaseProductName() 返回的字符串进行设置。
+        由于通常情况下这个字符串都非常长而且相同产品的不同版本会返回不同的值，所以最好通过设置属性别名来使其变短，如下：
+        <databaseIdProvider type="DB_VENDOR">
+          <property name="SQL Server" value="sqlserver"/>
+          <property name="MySQL" value="mysql"/>
+          <property name="Oracle" value="oracle" />
+        </databaseIdProvider>
+        在有 properties 时，DB_VENDOR databaseIdProvider 的将被设置为第一个能匹配数据库产品名称的属性键对应的值，
+        如果没有匹配的属性将会设置为 “null”。
+　　    因为每个数据库在实现的时候，getDatabaseProductName() 返回的通常并不是直接的Oracle或者MySQL，而是“Oracle (DataDirect)”，
+        所以如果希望使用多数据库特性，一般需要实现 org.apache.ibatis.mapping.DatabaseIdProvider接口
+        并在 mybatis-config.xml 中注册来构建自己的 DatabaseIdProvider
+       */
       String type = context.getStringAttribute("type");
       // awful patch to keep backward compatibility
       if ("VENDOR".equals(type)) {
@@ -384,6 +425,12 @@ public class XMLConfigBuilder extends BaseBuilder {
   }
 
   private TransactionFactory transactionManagerElement(XNode context) throws Exception {
+    /*
+      配置样例：
+      <transactionManager type="JDBC">
+          <property name="" value=""></property>
+      </transactionManager>
+     */
     if (context != null) {
       String type = context.getStringAttribute("type");
       Properties props = context.getChildrenAsProperties();
@@ -406,12 +453,50 @@ public class XMLConfigBuilder extends BaseBuilder {
   }
 
   private void typeHandlerElement(XNode parent) throws Exception {
+    /*
+      无论是 MyBatis 在预处理语句（PreparedStatement）中设置一个参数时，还是从结果集中取出一个值时，
+      都会用类型处理器将获取的值以合适的方式转换成 Java 类型。
+　　   mybatis提供了两种方式注册类型处理器，package自动检索方式和显示定义方式。
+      使用自动检索（autodiscovery）功能的时候，只能通过注解方式来指定 JDBC 的类型。
+
+      通过类型处理器的泛型，MyBatis 可以得知该类型处理器处理的 Java 类型，不过这种行为可以通过两种方法改变：
+      在类型处理器的配置元素（typeHandler element）上增加一个 javaType 属性（比如：javaType=”String”）；
+      在类型处理器的类上（TypeHandler class）增加一个 @MappedTypes 注解来指定与其关联的 Java 类型列表。
+      如果在 javaType 属性中也同时指定，则注解方式将被忽略。
+
+      可以通过两种方式来指定被关联的 JDBC 类型：
+      在类型处理器的配置元素上增加一个 jdbcType 属性（比如：jdbcType=”VARCHAR”）；
+      在类型处理器的类上（TypeHandler class）增加一个 @MappedJdbcTypes 注解来指定与其关联的 JDBC 类型列表。
+      如果在两个位置同时指定，则注解方式将被忽略。
+
+      当决定在ResultMap中使用某一TypeHandler时，此时java类型是已知的（从结果类型中获得），但是JDBC类型是未知的。
+      因此Mybatis使用javaType=[TheJavaType], jdbcType=null的组合来选择一个TypeHandler。
+      这意味着使用@MappedJdbcTypes注解可以限制TypeHandler的范围，同时除非显示的设置，否则TypeHandler在ResultMap中将是无效的。
+      如果希望在ResultMap中使用TypeHandler，那么设置@MappedJdbcTypes注解的includeNullJdbcType=true即可。
+      然而从Mybatis 3.4.0开始，如果只有一个注册的TypeHandler来处理Java类型，那么它将是ResultMap使用Java类型时的默认值（即使没有includeNullJdbcType=true）?
+     */
     if (parent != null) {
       for (XNode child : parent.getChildren()) {
         if ("package".equals(child.getName())) {
+          /*
+            使用包配置:
+            <typeHandlers>
+              <package name="org.mybatis.example"/>
+            </typeHandlers>
+            为了简化使用，mybatis在初始化TypeHandlerRegistry期间，自动注册了大部分的常用的类型处理器比如字符串、数字、日期等。
+            对于非标准的类型，用户可以自定义类型处理器来处理。
+              要实现一个自定义类型处理器，只要实现 org.apache.ibatis.type.TypeHandler 接口，
+              或继承一个实用类 org.apache.ibatis.type.BaseTypeHandler， 并将它映射到一个 JDBC 类型即可
+           */
           String typeHandlerPackage = child.getStringAttribute("name");
           typeHandlerRegistry.register(typeHandlerPackage);
         } else {
+          /*
+            显示定义方式：
+            <typeHandlers>
+              <typeHandler handler="org.mybatis.example.ExampleTypeHandler"/>
+            </typeHandlers>
+           */
           String javaTypeName = child.getStringAttribute("javaType");
           String jdbcTypeName = child.getStringAttribute("jdbcType");
           String handlerTypeName = child.getStringAttribute("handler");
@@ -435,23 +520,44 @@ public class XMLConfigBuilder extends BaseBuilder {
   private void mapperElement(XNode parent) throws Exception {
     if (parent != null) {
       for (XNode child : parent.getChildren()) {
+        // 如果要同时使用package自动扫描和通过mapper明确指定要加载的mapper，一定要确保package自动扫描的范围不包含明确指定的mapper，
+        // 否则在通过package扫描的interface的时候，尝试加载对应xml文件的loadXmlResource()的逻辑中出现判重出错，
+        // 报org.apache.ibatis.binding.BindingException异常，即使xml文件中包含的内容和mapper接口中包含的语句不重复也会出错，
+        // 包括加载mapper接口时自动加载的xml mapper也一样会出错。
+        // 不管使用何种方式，最终都是由XMLMapperBuilder来解析Mapper.xml
         if ("package".equals(child.getName())) {
+          /*
+            配置样例:
+            <mappers>
+                <package name="org.mybatis.internal.example.mapper"/>
+            </mappers>
+           */
           String mapperPackage = child.getStringAttribute("name");
+          // 扫描指定包下继承自Object的接口
           configuration.addMappers(mapperPackage);
         } else {
+          /*
+            配置样例:
+            <mappers>
+                <mapper resource="org/mybatis/internal/example/mapper/UserMapper.xml"/>
+                <mapper url="file:///org/mybatis/internal/example/mapper/UserMapper.xml"/>
+                <mapper class="org.mybatis.internal.example.mapper.UserMapper"/>
+            </mappers>
+           */
           String resource = child.getStringAttribute("resource");
           String url = child.getStringAttribute("url");
           String mapperClass = child.getStringAttribute("class");
+          // url, resource or class 必须设置且只能设置一个
           if (resource != null && url == null && mapperClass == null) {
             ErrorContext.instance().resource(resource);
             InputStream inputStream = Resources.getResourceAsStream(resource);
             XMLMapperBuilder mapperParser = new XMLMapperBuilder(inputStream, configuration, resource, configuration.getSqlFragments());
-            mapperParser.parse();
+            mapperParser.parse(); // 真正解析Mapper.xml
           } else if (resource == null && url != null && mapperClass == null) {
             ErrorContext.instance().resource(url);
             InputStream inputStream = Resources.getUrlAsStream(url);
             XMLMapperBuilder mapperParser = new XMLMapperBuilder(inputStream, configuration, url, configuration.getSqlFragments());
-            mapperParser.parse();
+            mapperParser.parse(); // 真正解析Mapper.xml
           } else if (resource == null && url == null && mapperClass != null) {
             Class<?> mapperInterface = Resources.classForName(mapperClass);
             configuration.addMapper(mapperInterface);
