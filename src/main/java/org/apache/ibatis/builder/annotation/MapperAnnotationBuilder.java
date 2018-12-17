@@ -169,6 +169,14 @@ public class MapperAnnotationBuilder {
       String xmlResource = type.getName().replace('.', '/') + ".xml";
       InputStream inputStream = null;
       try {
+        /*
+          根据package自动搜索加载的时候，约定俗称从classpath下加载接口的完整名，
+          比如cn.com.cxy.mybatis.dao.UserMapper，就加载cn/com/cxy/mybatis/dao/UserMapper.xml。
+          对于从package和class进来的mapper，如果找不到对应的文件，就忽略，因为这种情况下是允许SQL语句作为注解打在接口上的，所以xml文件不是必须的，
+          而对于直接声明的xml mapper文件，如果找不到的话会抛出IOException异常而终止，这在使用注解模式的时候需要注意。
+          加载到对应的mapper.xml文件后，调用XMLMapperBuilder进行解析。在创建XMLMapperBuilder时，我们发现用到了configuration.getSqlFragments()，
+          这就是我们在mapper文件中经常使用的可以被包含在其他语句中的SQL片段，但是我们并没有初始化过，所以很有可能它是在解析过程中动态添加的
+         */
         inputStream = Resources.getResourceAsStream(type.getClassLoader(), xmlResource);
       } catch (IOException e) {
         // ignore, resource is not required

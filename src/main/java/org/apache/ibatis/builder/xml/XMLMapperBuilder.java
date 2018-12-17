@@ -89,7 +89,7 @@ public class XMLMapperBuilder extends BaseBuilder {
 
   public void parse() {
     if (!configuration.isResourceLoaded(resource)) {
-      configurationElement(parser.evalNode("/mapper"));
+      configurationElement(parser.evalNode("/mapper")); // 解析mapper文件的核心方法
       configuration.addLoadedResource(resource);
       bindMapperForNamespace();
     }
@@ -110,9 +110,9 @@ public class XMLMapperBuilder extends BaseBuilder {
         throw new BuilderException("Mapper's namespace cannot be empty");
       }
       builderAssistant.setCurrentNamespace(namespace);
-      cacheRefElement(context.evalNode("cache-ref"));
-      cacheElement(context.evalNode("cache"));
-      parameterMapElement(context.evalNodes("/mapper/parameterMap"));
+      cacheRefElement(context.evalNode("cache-ref")); // 解析缓存引用
+      cacheElement(context.evalNode("cache")); // 解析缓存
+      parameterMapElement(context.evalNodes("/mapper/parameterMap")); // 解析参数映射parameterMap; 已不推荐使用
       resultMapElements(context.evalNodes("/mapper/resultMap"));
       sqlElement(context.evalNodes("/mapper/sql"));
       buildStatementFromContext(context.evalNodes("select|insert|update|delete"));
@@ -185,6 +185,14 @@ public class XMLMapperBuilder extends BaseBuilder {
   }
 
   private void cacheRefElement(XNode context) {
+    /*
+      配置示例:
+        <cache-ref namespace=”com.someone.application.data.SomeMapper”/>
+
+      缓存引用因为通过namespace指向其他的缓存。所以会出现第一次解析的时候指向的缓存还不存在的情况，所以需要在所有的mapper文件加载完成后进行二次处理，
+      不仅仅是缓存引用，其他的CRUD也一样。所以在XMLMapperBuilder.configuration中有很多的incompleteXXX，这种设计模式类似于JVM GC中的mark and sweep，标记、然后处理。
+      所以当捕获到IncompleteElementException异常时，没有终止执行，而是将指向的缓存不存在的cacheRefResolver添加到configuration.incompleteCacheRef中
+     */
     if (context != null) {
       configuration.addCacheRef(builderAssistant.getCurrentNamespace(), context.getStringAttribute("namespace"));
       CacheRefResolver cacheRefResolver = new CacheRefResolver(builderAssistant, context.getStringAttribute("namespace"));
@@ -197,21 +205,44 @@ public class XMLMapperBuilder extends BaseBuilder {
   }
 
   private void cacheElement(XNode context) throws Exception {
+    /*
+      配置样例:
+        <cache eviction="FIFO" flushInterval="60000" size="512" readOnly="true" type="com.domain.something.MyCustomCache"/>
+     */
     if (context != null) {
-      String type = context.getStringAttribute("type", "PERPETUAL");
+      String type = context.getStringAttribute("type", "PERPETUAL"); // 缓存实现
       Class<? extends Cache> typeClass = typeAliasRegistry.resolveAlias(type);
-      String eviction = context.getStringAttribute("eviction", "LRU");
+      String eviction = context.getStringAttribute("eviction", "LRU"); // 回收策略
       Class<? extends Cache> evictionClass = typeAliasRegistry.resolveAlias(eviction);
-      Long flushInterval = context.getLongAttribute("flushInterval");
-      Integer size = context.getIntAttribute("size");
-      boolean readWrite = !context.getBooleanAttribute("readOnly", false);
-      boolean blocking = context.getBooleanAttribute("blocking", false);
+      Long flushInterval = context.getLongAttribute("flushInterval"); // 刷新间隔
+      Integer size = context.getIntAttribute("size"); // 引用数目 默认1024
+      boolean readWrite = !context.getBooleanAttribute("readOnly", false); // 只读
+      boolean blocking = context.getBooleanAttribute("blocking", false); // 阻塞
       Properties props = context.getChildrenAsProperties();
       builderAssistant.useNewCache(typeClass, evictionClass, flushInterval, size, readWrite, blocking, props);
     }
   }
 
   private void parameterMapElement(List<XNode> list) throws Exception {
+    /*
+      DTD:
+      <!ELEMENT parameterMap (parameter+)?>
+      <!ATTLIST parameterMap
+      id CDATA #REQUIRED
+      type CDATA #REQUIRED
+      >
+
+      <!ELEMENT parameter EMPTY>
+      <!ATTLIST parameter
+      property CDATA #REQUIRED
+      javaType CDATA #IMPLIED
+      jdbcType CDATA #IMPLIED
+      mode (IN | OUT | INOUT) #IMPLIED
+      resultMap CDATA #IMPLIED
+      scale CDATA #IMPLIED
+      typeHandler CDATA #IMPLIED
+      >
+     */
     for (XNode parameterMapNode : list) {
       String id = parameterMapNode.getStringAttribute("id");
       String type = parameterMapNode.getStringAttribute("type");
