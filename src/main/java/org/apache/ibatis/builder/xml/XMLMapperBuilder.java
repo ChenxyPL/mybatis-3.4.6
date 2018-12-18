@@ -299,6 +299,7 @@ public class XMLMapperBuilder extends BaseBuilder {
     resultMappings.addAll(additionalResultMappings);
     List<XNode> resultChildren = resultMapNode.getChildren();
     for (XNode resultChild : resultChildren) {
+      // 解析resultMap下的constructor节点
       if ("constructor".equals(resultChild.getName())) {
         processConstructorElement(resultChild, typeClass, resultMappings);
       } else if ("discriminator".equals(resultChild.getName())) {
@@ -322,6 +323,14 @@ public class XMLMapperBuilder extends BaseBuilder {
 
   private void processConstructorElement(XNode resultChild, Class<?> resultType, List<ResultMapping> resultMappings) throws Exception {
     List<XNode> argChildren = resultChild.getChildren();
+    /*
+      配置示例:
+        <constructor>
+           <idArg column="id" javaType="int"/>
+           <arg column="username" javaType="String"/>
+           <arg column="age" javaType="_int"/>
+        </constructor>
+     */
     for (XNode argChild : argChildren) {
       List<ResultFlag> flags = new ArrayList<ResultFlag>();
       flags.add(ResultFlag.CONSTRUCTOR);
@@ -399,6 +408,10 @@ public class XMLMapperBuilder extends BaseBuilder {
     String javaType = context.getStringAttribute("javaType");
     String jdbcType = context.getStringAttribute("jdbcType");
     String nestedSelect = context.getStringAttribute("select");
+    // resultMap中可以包含association或collection复合类型,这些复合类型可以使用外部定义的公用resultMap或者内嵌resultMap
+    // 所以这里的处理逻辑是如果有resultMap就获取resultMap,如果没有,那就动态生成一个。
+    // 如果自动生成的话，他的resultMap id通过调用XNode.getValueBasedIdentifier()来获得
+    // nestedResultMap就是内层的resultMap id
     String nestedResultMap = context.getStringAttribute("resultMap",
         processNestedResultMappings(context, Collections.<ResultMapping> emptyList()));
     String notNullColumn = context.getStringAttribute("notNullColumn");
@@ -415,6 +428,10 @@ public class XMLMapperBuilder extends BaseBuilder {
   }
   
   private String processNestedResultMappings(XNode context, List<ResultMapping> resultMappings) throws Exception {
+    /*
+      查看DTD文件可以发现，constructor下的idArg、arg也可配置resultMap属性；
+      但是这里又过滤掉，只有是association、collection、case节点是才会解析 不知意图？
+     */
     if ("association".equals(context.getName())
         || "collection".equals(context.getName())
         || "case".equals(context.getName())) {

@@ -324,6 +324,7 @@ public class MapperAnnotationBuilder {
       KeyGenerator keyGenerator;
       String keyProperty = "id";
       String keyColumn = null;
+      // 只有INSERT/UPDATE才解析SelectKey选项
       if (SqlCommandType.INSERT.equals(sqlCommandType) || SqlCommandType.UPDATE.equals(sqlCommandType)) {
         // first check for SelectKey annotation - that overrides everything else
         SelectKey selectKey = method.getAnnotation(SelectKey.class);
@@ -370,6 +371,7 @@ public class MapperAnnotationBuilder {
         }
         resultMapId = sb.toString();
       } else if (isSelect) {
+        // 如果是查询，且没有明确设置ResultMap，则根据返回类型自动解析生成ResultMap
         resultMapId = parseResultMap(method);
       }
 
