@@ -299,10 +299,10 @@ public class XMLMapperBuilder extends BaseBuilder {
     resultMappings.addAll(additionalResultMappings);
     List<XNode> resultChildren = resultMapNode.getChildren();
     for (XNode resultChild : resultChildren) {
-      // 解析resultMap下的constructor节点
+      // 解析resultMap下的constructor节点；constructor节点下的每个节点都会解析成一个resultMapping
       if ("constructor".equals(resultChild.getName())) {
         processConstructorElement(resultChild, typeClass, resultMappings);
-      } else if ("discriminator".equals(resultChild.getName())) {
+      } else if ("discriminator".equals(resultChild.getName())) { // 鉴别器
         discriminator = processDiscriminatorElement(resultChild, typeClass, resultMappings);
       } else {
         List<ResultFlag> flags = new ArrayList<ResultFlag>();

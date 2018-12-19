@@ -80,6 +80,7 @@ public class XNode {
       if (current != this) {
         builder.insert(0, "_");
       }
+      // 先取id 再取value 最后是property
       String value = current.getStringAttribute("id",
           current.getStringAttribute("value",
               current.getStringAttribute("property", null)));
@@ -93,6 +94,7 @@ public class XNode {
       builder.insert(0, current.getName());
       current = current.getParent();
     }
+    // 结果格式如：AAA[aaa]_BBB[bbb]_CCC[ccc]
     return builder.toString();
   }
 

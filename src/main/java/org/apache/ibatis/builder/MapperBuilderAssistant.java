@@ -180,15 +180,18 @@ public class MapperBuilderAssistant extends BaseBuilder {
       Discriminator discriminator,
       List<ResultMapping> resultMappings,
       Boolean autoMapping) {
+    // 将id/extend转为带有命名空间的格式, isReference=true标识添加的不需要和当前resultMap所在的namespace相同,比如extend和cache,否则只能是当前的namespace
     id = applyCurrentNamespace(id, false);
     extend = applyCurrentNamespace(extend, true);
 
     if (extend != null) {
+      // 判断继承的resultMap是否已存在,如果不存在抛出异常，外部会捕获该异常，并将当前resultMap标记为incomplete,会进行二次处理
       if (!configuration.hasResultMap(extend)) {
         throw new IncompleteElementException("Could not find a parent resultmap with id '" + extend + "'");
       }
       ResultMap resultMap = configuration.getResultMap(extend);
       List<ResultMapping> extendedResultMappings = new ArrayList<ResultMapping>(resultMap.getResultMappings());
+      // 从继承的resultMap中剔除在本resultMap中已存在的resultMappings
       extendedResultMappings.removeAll(resultMappings);
       // Remove parent constructor if this resultMap declares a constructor.
       boolean declaresConstructor = false;
@@ -206,6 +209,8 @@ public class MapperBuilderAssistant extends BaseBuilder {
           }
         }
       }
+      // 都处理完成之后,将继承的resultMap里面剩下那部分不重复的resultMap子元素添加到当前的resultMap中,
+      // 所以这个addResultMap方法的用途在于启动时就创建了完整的resultMap，这样运行时就不需要去检查继承的映射和构造器,有利于性能提升。
       resultMappings.addAll(extendedResultMappings);
     }
     ResultMap resultMap = new ResultMap.Builder(configuration, id, type, resultMappings, autoMapping)

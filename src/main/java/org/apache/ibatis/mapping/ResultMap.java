@@ -41,16 +41,16 @@ public class ResultMap {
 
   private String id;
   private Class<?> type;
-  private List<ResultMapping> resultMappings;
-  private List<ResultMapping> idResultMappings;
-  private List<ResultMapping> constructorResultMappings;
-  private List<ResultMapping> propertyResultMappings;
-  private Set<String> mappedColumns;
-  private Set<String> mappedProperties;
+  private List<ResultMapping> resultMappings; // resultMap下的所有节点
+  private List<ResultMapping> idResultMappings; // resultMap下的id节点 如：<id property="id" column="user_id" />
+  private List<ResultMapping> constructorResultMappings; // resultMap下的constructor节点
+  private List<ResultMapping> propertyResultMappings; // resultMap下的result节点 如： <result property="password" column="hashed_password"/>
+  private Set<String> mappedColumns; // 映射的列名
+  private Set<String> mappedProperties;  // 映射的javaBean属性名
   private Discriminator discriminator;
-  private boolean hasNestedResultMaps;
-  private boolean hasNestedQueries;
-  private Boolean autoMapping;
+  private boolean hasNestedResultMaps; // 是否有嵌套resultMap
+  private boolean hasNestedQueries; // 是否有嵌套子查询
+  private Boolean autoMapping; // 自动映射属性
 
   private ResultMap() {
   }
@@ -91,9 +91,14 @@ public class ResultMap {
       resultMap.constructorResultMappings = new ArrayList<ResultMapping>();
       resultMap.propertyResultMappings = new ArrayList<ResultMapping>();
       final List<String> constructorArgNames = new ArrayList<String>();
+      // 遍历所有resultMappings
       for (ResultMapping resultMapping : resultMap.resultMappings) {
+        // 判断是否有嵌套查询, nestedQueryId是在buildResultMappingFromContext方法中通过解析节点的select属性得到的
         resultMap.hasNestedQueries = resultMap.hasNestedQueries || resultMapping.getNestedQueryId() != null;
+        // 判断是否嵌套了association或者collection, nestedResultMapId是在buildResultMappingFromContext方法中通过读取节点的resultMap属性得到的或者内嵌resultMap的时候自动计算得到的。
+        // 注：这里的resultSet没有地方set进来,DTD中也没有看到，不确定是不是有意预留的，但是association/collection的子元素中倒是有声明
         resultMap.hasNestedResultMaps = resultMap.hasNestedResultMaps || (resultMapping.getNestedResultMapId() != null && resultMapping.getResultSet() == null);
+        // 获取column属性, 包括复合列，复合列是在org.apache.ibatis.builder.MapperBuilderAssistant.parseCompositeColumnName(String)中解析的。所有的数据库列都被按顺序添加到resultMap.mappedColumns中
         final String column = resultMapping.getColumn();
         if (column != null) {
           resultMap.mappedColumns.add(column.toUpperCase(Locale.ENGLISH));
@@ -105,25 +110,31 @@ public class ResultMap {
             }
           }
         }
+        // 所有映射的属性都被按顺序添加到resultMap.mappedProperties中
         final String property = resultMapping.getProperty();
         if(property != null) {
           resultMap.mappedProperties.add(property);
         }
+        // constructor中的节点
         if (resultMapping.getFlags().contains(ResultFlag.CONSTRUCTOR)) {
           resultMap.constructorResultMappings.add(resultMapping);
           if (resultMapping.getProperty() != null) {
             constructorArgNames.add(resultMapping.getProperty());
           }
         } else {
+          // result节点
           resultMap.propertyResultMappings.add(resultMapping);
         }
+        // id节点
         if (resultMapping.getFlags().contains(ResultFlag.ID)) {
           resultMap.idResultMappings.add(resultMapping);
         }
       }
+      // 如果没有声明ID属性,就把所有属性都作为ID属性
       if (resultMap.idResultMappings.isEmpty()) {
         resultMap.idResultMappings.addAll(resultMap.resultMappings);
       }
+      // 根据声明的构造器参数名和类型,反射声明的类,检查其中是否包含对应参数名和类型的构造器,如果不存在匹配的构造器,就抛出运行时异常,这是为了确保运行时不会出现异常
       if (!constructorArgNames.isEmpty()) {
         final List<String> actualArgNames = argNamesOfMatchingConstructor(constructorArgNames);
         if (actualArgNames == null) {
@@ -132,6 +143,7 @@ public class ResultMap {
               + resultMap.getType().getName() + "' by arg names " + constructorArgNames
               + ". There might be more info in debug log.");
         }
+        // 构造器参数排序
         Collections.sort(resultMap.constructorResultMappings, new Comparator<ResultMapping>() {
           @Override
           public int compare(ResultMapping o1, ResultMapping o2) {
@@ -142,6 +154,7 @@ public class ResultMap {
         });
       }
       // lock down collections
+      // 为了避免用于无意或者有意事后修改resultMap的内部结构, 克隆一个不可修改的集合提供给用户
       resultMap.resultMappings = Collections.unmodifiableList(resultMap.resultMappings);
       resultMap.idResultMappings = Collections.unmodifiableList(resultMap.idResultMappings);
       resultMap.constructorResultMappings = Collections.unmodifiableList(resultMap.constructorResultMappings);
