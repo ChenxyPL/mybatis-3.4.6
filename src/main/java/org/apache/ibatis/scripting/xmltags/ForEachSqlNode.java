@@ -52,6 +52,7 @@ public class ForEachSqlNode implements SqlNode {
   @Override
   public boolean apply(DynamicContext context) {
     Map<String, Object> bindings = context.getBindings();
+    // 将Map/Array/List统一包装为迭代器接口
     final Iterable<?> iterable = evaluator.evaluateIterable(collectionExpression, bindings);
     if (!iterable.iterator().hasNext()) {
       return true;
@@ -59,6 +60,7 @@ public class ForEachSqlNode implements SqlNode {
     boolean first = true;
     applyOpen(context);
     int i = 0;
+    // 遍历集合
     for (Object o : iterable) {
       DynamicContext oldContext = context;
       if (first || separator == null) {
@@ -77,6 +79,8 @@ public class ForEachSqlNode implements SqlNode {
         applyIndex(context, i, uniqueNumber);
         applyItem(context, o, uniqueNumber);
       }
+      // 子节点SqlNode处理，很重要的一个逻辑就是将#{item.XXX}转换为#{__frch_item_N.XXX}，
+      // 这样在JDBC设置参数的时候就能够找到对应的参数值了
       contents.apply(new FilteredDynamicContext(configuration, context, index, item, uniqueNumber));
       if (first) {
         first = !((PrefixedContext) context).isPrefixApplied();
