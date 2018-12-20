@@ -113,8 +113,8 @@ public class XMLMapperBuilder extends BaseBuilder {
       cacheRefElement(context.evalNode("cache-ref")); // 解析缓存引用
       cacheElement(context.evalNode("cache")); // 解析缓存
       parameterMapElement(context.evalNodes("/mapper/parameterMap")); // 解析参数映射parameterMap; 已不推荐使用
-      resultMapElements(context.evalNodes("/mapper/resultMap"));
-      sqlElement(context.evalNodes("/mapper/sql"));
+      resultMapElements(context.evalNodes("/mapper/resultMap")); // resultMap节点解析
+      sqlElement(context.evalNodes("/mapper/sql")); // sql节点解析
       buildStatementFromContext(context.evalNodes("select|insert|update|delete"));
     } catch (Exception e) {
       throw new BuilderException("Error parsing Mapper XML. The XML location is '" + resource + "'. Cause: " + e, e);
@@ -370,6 +370,7 @@ public class XMLMapperBuilder extends BaseBuilder {
     for (XNode context : list) {
       String databaseId = context.getStringAttribute("databaseId");
       String id = context.getStringAttribute("id");
+      // sql片段必须是在本命名空间内
       id = builderAssistant.applyCurrentNamespace(id, false);
       if (databaseIdMatchesCurrent(id, databaseId, requiredDatabaseId)) {
         sqlFragments.put(id, context);
@@ -378,15 +379,19 @@ public class XMLMapperBuilder extends BaseBuilder {
   }
   
   private boolean databaseIdMatchesCurrent(String id, String databaseId, String requiredDatabaseId) {
+    // 若指定了databaseId 但sql的databaseId属性不一致的则不匹配
     if (requiredDatabaseId != null) {
       if (!requiredDatabaseId.equals(databaseId)) {
         return false;
       }
     } else {
+      // 未指定databaseId 但是sql的databaseId属性不为空则不匹配
       if (databaseId != null) {
         return false;
       }
       // skip this fragment if there is a previous one with a not null databaseId
+      // 若已存在指定key需要判断databaseId是否为空
+      // id出现重复时，后面的会覆盖前面的
       if (this.sqlFragments.containsKey(id)) {
         XNode context = this.sqlFragments.get(id);
         if (context.getStringAttribute("databaseId") != null) {

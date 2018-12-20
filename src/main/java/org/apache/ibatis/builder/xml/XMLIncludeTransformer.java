@@ -57,6 +57,27 @@ public class XMLIncludeTransformer {
    * @param variablesContext Current context for static variables with values
    */
   private void applyIncludes(Node source, final Properties variablesContext, boolean included) {
+    /*
+      总的来说，将节点分为文本节点、include、非include三类进行处理。
+      因为一开始传递进来的是CRUD节点本身，所以第一次执行的时候，是第一个else if，也就是source.getNodeType() == Node.ELEMENT_NODE，然后在这里开始遍历所有的子节点。
+      对于include节点：根据属性refid调用findSqlFragment找到sql片段，对节点中包含的占位符进行替换解析，然后调用自身进行递归解析，解析到文本节点返回之后。
+      判断include的sql片段是否和包含它的节点是同一个文档，如果不是，则把它从原来的文档包含进来。
+      然后使用include指向的sql节点替换include节点，最后剥掉sql节点本身，也就是把sql下的节点上移一层
+      如：
+        <sql id="userColumns"> id,username,password </sql>
+        <select id="selectUsers" parameterType="int" resultType="hashmap">
+            select <include refid="userColumns"/>
+            from some_table
+            where id = #{id}
+        </select>
+       转换为下面的形式：
+
+      <select id="selectUsers" parameterType="int" resultType="hashmap">
+          select id,username,password
+          from some_table
+          where id = #{id}
+      </select>
+     */
     if (source.getNodeName().equals("include")) {
       Node toInclude = findSqlFragment(getStringAttribute(source, "refid"), variablesContext);
       Properties toIncludeContext = getVariablesContext(source, variablesContext);

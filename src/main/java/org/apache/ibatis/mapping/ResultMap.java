@@ -200,6 +200,10 @@ public class ResultMap {
     private List<String> getArgNames(Constructor<?> constructor) {
       List<String> paramNames = new ArrayList<String>();
       List<String> actualParamNames = null;
+      /*
+        getParameterAnnotations()获取方法的注解数据，返回的是一个二维数组
+        第一维度对应方法参数，长度等于参数个数；第二维度对应某个参数的注解，长度等于这个参数上的注解个数
+       */
       final Annotation[][] paramAnnotations = constructor.getParameterAnnotations();
       int paramCount = paramAnnotations.length;
       for (int paramIndex = 0; paramIndex < paramCount; paramIndex++) {
@@ -210,6 +214,7 @@ public class ResultMap {
             break;
           }
         }
+        // 允许使用方法签名中的名称作为语句参数名称。 为了使用该特性，你的工程必须采用Java 8编译，并且加上-parameters选项。（从3.4.1开始）
         if (name == null && resultMap.configuration.isUseActualParamName() && Jdk.parameterExists) {
           if (actualParamNames == null) {
             actualParamNames = ParamNameUtil.getParamNames(constructor);

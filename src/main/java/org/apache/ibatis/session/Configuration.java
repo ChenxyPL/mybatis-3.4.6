@@ -666,7 +666,9 @@ public class Configuration {
 
   public void addResultMap(ResultMap rm) {
     resultMaps.put(rm.getId(), rm);
+    // 检查本resultMap内的鉴别器有没有嵌套resultMap
     checkLocallyForDiscriminatedNestedResultMaps(rm);
+    // 检查所有resultMap的鉴别器有没有嵌套resultMap
     checkGloballyForDiscriminatedNestedResultMaps(rm);
   }
 

@@ -68,18 +68,25 @@ public class XMLStatementBuilder extends BaseBuilder {
     Class<?> parameterTypeClass = resolveClass(parameterType);
     String resultMap = context.getStringAttribute("resultMap");
     String resultType = context.getStringAttribute("resultType");
+    // MyBatis 从 3.2 开始支持可插拔的脚本语言，因此你可以在插入一种语言的驱动（language driver）之后来写基于这种语言的动态 SQL 查询。
     String lang = context.getStringAttribute("lang");
+    // 在Configuration的构造方法中默认注册了XMLLanguageDriver
     LanguageDriver langDriver = getLanguageDriver(lang);
 
     Class<?> resultTypeClass = resolveClass(resultType);
+    // 结果集的类型，FORWARD_ONLY，SCROLL_SENSITIVE 或 SCROLL_INSENSITIVE 中的一个，默认值为 unset （依赖驱动）。
     String resultSetType = context.getStringAttribute("resultSetType");
+    // 解析crud语句的类型，mybatis目前支持三种,prepare、硬编码、以及存储过程调用
     StatementType statementType = StatementType.valueOf(context.getStringAttribute("statementType", StatementType.PREPARED.toString()));
     ResultSetType resultSetTypeEnum = resolveResultSetType(resultSetType);
 
     String nodeName = context.getNode().getNodeName();
+    // 解析SQL命令类型，目前主要有UNKNOWN, INSERT, UPDATE, DELETE, SELECT, FLUSH
     SqlCommandType sqlCommandType = SqlCommandType.valueOf(nodeName.toUpperCase(Locale.ENGLISH));
     boolean isSelect = sqlCommandType == SqlCommandType.SELECT;
+    // insert/delete/update后是否刷新缓存
     boolean flushCache = context.getBooleanAttribute("flushCache", !isSelect);
+    // select是否使用缓存
     boolean useCache = context.getBooleanAttribute("useCache", isSelect);
     boolean resultOrdered = context.getBooleanAttribute("resultOrdered", false);
 
@@ -88,9 +95,30 @@ public class XMLStatementBuilder extends BaseBuilder {
     includeParser.applyIncludes(context.getNode());
 
     // Parse selectKey after includes and remove them.
+    /*
+      selectKey节点用于支持数据库比如Oracle不支持自动生成主键，或者可能JDBC驱动不支持自动生成主键时的情况。
+      对于数据库支持自动生成主键的字段（比如MySQL和SQL Server），那么你可以设置useGeneratedKeys=”true”，而且设置keyProperty到你已经做好的目标属性上就可以了，
+      不需要使用selectKey节点。
+      由于selectKey可能包含在SQL片段中，所以需要先处理SQL片段节点，将包含的SQL片段替换展开，然后解析selectKey节点
+     */
     processSelectKeyNodes(id, parameterTypeClass, langDriver);
     
     // Parse the SQL (pre: <selectKey> and <include> were parsed and removed)
+    /*
+      MyBatis 从 3.2 开始支持可插拔的脚本语言，因此你可以在插入一种语言的驱动（language driver）之后来写基于这种语言的动态 SQL 查询比如mybatis除了XML格式外，
+      还提供了mybatis-velocity，允许使用velocity表达式编写SQL语句。可以通过实现LanguageDriver接口的方式来插入一种语言
+      可以通过配置将自定的LanguageDriver设置为默认的LanguageDriver
+      <typeAliases>
+        <typeAlias type="org.sample.MyLanguageDriver" alias="myLanguage"/>
+      </typeAliases>
+      <settings>
+        <setting name="defaultScriptingLanguage" value="myLanguage"/>
+      </settings>
+      可以针对单个sql设置LanguageDriver 如：
+      <select id="selectBlog" lang="myLanguage">
+        SELECT * FROM BLOG
+      </select>
+     */
     SqlSource sqlSource = langDriver.createSqlSource(configuration, context, parameterTypeClass);
     String resultSets = context.getStringAttribute("resultSets");
     String keyProperty = context.getStringAttribute("keyProperty");
