@@ -25,8 +25,10 @@ import org.apache.ibatis.mapping.MappedStatement;
  */
 public interface KeyGenerator {
 
+  // before key generator 主要用于oracle等使用序列机制的ID生成方式
   void processBefore(Executor executor, MappedStatement ms, Statement stmt, Object parameter);
 
+  // after key generator 主要用于mysql等使用自增机制的ID生成方式
   void processAfter(Executor executor, MappedStatement ms, Statement stmt, Object parameter);
 
 }

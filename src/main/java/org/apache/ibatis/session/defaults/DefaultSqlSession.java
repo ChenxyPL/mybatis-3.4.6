@@ -46,6 +46,11 @@ import org.apache.ibatis.session.SqlSession;
  *
  * @author Clinton Begin
  */
+/*
+根据sql语句使用xml进行维护或者在注解上配置,sql语句执行的入口分为两种：
+　　第一种，调用org.apache.ibatis.session.SqlSession的crud方法比如selectList/selectOne传递完整的语句id直接执行；
+　　第二种，先调用SqlSession的getMapper()方法得到mapper接口的一个实现，然后调用具体的方法。除非早期，现在实际开发中，我们一般采用这种方式
+ */
 public class DefaultSqlSession implements SqlSession {
 
   private final Configuration configuration;
@@ -145,6 +150,7 @@ public class DefaultSqlSession implements SqlSession {
   public <E> List<E> selectList(String statement, Object parameter, RowBounds rowBounds) {
     try {
       MappedStatement ms = configuration.getMappedStatement(statement);
+      // 在这里对查询参数parameter进行了一次封装，封装逻辑wrapCollection主要是判断参数是否为数组或集合类型类型，是的话将他们包装到StrictMap中
       return executor.query(ms, wrapCollection(parameter), rowBounds, Executor.NO_RESULT_HANDLER);
     } catch (Exception e) {
       throw ExceptionFactory.wrapException("Error querying database.  Cause: " + e, e);

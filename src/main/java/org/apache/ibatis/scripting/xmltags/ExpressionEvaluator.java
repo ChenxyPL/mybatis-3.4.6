@@ -39,6 +39,7 @@ public class ExpressionEvaluator {
         return value != null;
     }
 
+    // 循环表达式解析，主要用于foreach标签
     public Iterable<?> evaluateIterable(String expression, Object parameterObject) {
         Object value = OgnlCache.getValue(expression, parameterObject);
         if (value == null) {

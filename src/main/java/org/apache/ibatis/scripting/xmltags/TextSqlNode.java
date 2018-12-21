@@ -23,6 +23,7 @@ import org.apache.ibatis.scripting.ScriptingException;
 import org.apache.ibatis.type.SimpleTypeRegistry;
 
 /**
+ * TextSqlNode主要是用来将${}转换为实际的参数值，并返回拼接后的SQL语句，为了防止SQL注入，可以通过标签来创建OGNL上下文变量
  * @author Clinton Begin
  */
 public class TextSqlNode implements SqlNode {
@@ -66,6 +67,7 @@ public class TextSqlNode implements SqlNode {
       this.injectionFilter = injectionFilter;
     }
 
+    // 将${}中的值替换为查询参数中实际的值并返回，在StaticTextSqlNode中，#{}返回的是?
     @Override
     public String handleToken(String content) {
       Object parameter = context.getBindings().get("_parameter");
