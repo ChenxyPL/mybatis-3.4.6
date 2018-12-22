@@ -32,6 +32,7 @@ public class ExamplePlugin implements Interceptor {
 
   @Override
   public Object plugin(Object target) {
+    // 创建代理
     return Plugin.wrap(target, this);
   }
 

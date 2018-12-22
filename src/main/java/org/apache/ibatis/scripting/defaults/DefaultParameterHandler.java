@@ -69,7 +69,7 @@ public class DefaultParameterHandler implements ParameterHandler {
         if (parameterMapping.getMode() != ParameterMode.OUT) {
           Object value;
           String propertyName = parameterMapping.getProperty();
-          // 计算参数值的优先级是 先判断是不是属于语句的AdditionalParameter；其次参数是不是null；然后判断是不是属于注册类型；
+          // 计算参数值的优先级是 先判断是不是属于语句的AdditionalParameter；其次参数值是不是null；然后判断是不是属于注册类型；
           // 都不是，那估计参数一定是object或者map了,这就要借助于MetaObject获取属性值了；
           if (boundSql.hasAdditionalParameter(propertyName)) { // issue #448 ask first for additional params
             value = boundSql.getAdditionalParameter(propertyName);
