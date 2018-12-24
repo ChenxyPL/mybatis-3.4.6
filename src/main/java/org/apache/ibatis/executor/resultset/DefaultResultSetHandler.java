@@ -506,8 +506,10 @@ public class DefaultResultSetHandler implements ResultSetHandler {
             // 处理嵌套query类型的属性
             return getNestedQueryMappingValue(rs, metaResultObject, propertyMapping, lazyLoader, columnPrefix);
         } else if (propertyMapping.getResultSet() != null) {
-            // 处理resultMap类型的属性,主要是：1、维护记录cacheKey和父属性/记录对Map的关联关系，便于在处理嵌套ResultMap时很快可以找到所有需要处理嵌套结果集的父属性；2、维护父属性和对应resultSet
-          // 的关联关系。这两者都是为了在处理嵌套结果集是方便
+            // 处理resultMap类型的属性,主要是：
+            //  1、维护记录cacheKey和父属性/记录对Map的关联关系，便于在处理嵌套ResultMap时很快可以找到所有需要处理嵌套结果集的父属性
+            //  2、维护父属性和对应resultSet
+            // 的关联关系。这两者都是为了在处理嵌套结果集是方便
             addPendingChildRelation(rs, metaResultObject, propertyMapping);   // TODO is that OK?
             return DEFERED;
         } else {
