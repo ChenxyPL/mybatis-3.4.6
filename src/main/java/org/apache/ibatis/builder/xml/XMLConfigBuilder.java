@@ -67,7 +67,7 @@ public class XMLConfigBuilder extends BaseBuilder {
   }
 
   public XMLConfigBuilder(Reader reader, String environment, Properties props) {
-    // XPathParser是用来解析xml文件的，XMLConfigBuilder、XMLMapperBuilder它们都是继承于BaseBuilder，xml的加载于解析委托给XPathParser
+    // XPathParser是用来解析xml文件的，XMLConfigBuilder、XMLMapperBuilder它们都是继承于BaseBuilder，xml的加载与解析委托给XPathParser
     // XMLMapperEntityResolver是用来指定xml对应的XSD或DTD如何获取
     this(new XPathParser(reader, true, props, new XMLMapperEntityResolver()), environment, props);
   }
