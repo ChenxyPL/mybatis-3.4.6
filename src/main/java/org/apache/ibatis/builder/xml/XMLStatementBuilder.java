@@ -74,9 +74,9 @@ public class XMLStatementBuilder extends BaseBuilder {
     LanguageDriver langDriver = getLanguageDriver(lang);
 
     Class<?> resultTypeClass = resolveClass(resultType);
-    // 结果集的类型，FORWARD_ONLY，SCROLL_SENSITIVE 或 SCROLL_INSENSITIVE 中的一个，默认值为 unset （依赖驱动）。
+    // 结果集的类型，FORWARD_ONLY，SCROLL_SENSITIVE 或 SCROLL_INSENSITIVE 中的一个，默认值: null。
     String resultSetType = context.getStringAttribute("resultSetType");
-    // 解析crud语句的类型，mybatis目前支持三种,prepare、硬编码、以及存储过程调用
+    // 解析crud语句的类型，mybatis目前支持三种STATEMENT, PREPARED, CALLABLE
     StatementType statementType = StatementType.valueOf(context.getStringAttribute("statementType", StatementType.PREPARED.toString()));
     ResultSetType resultSetTypeEnum = resolveResultSetType(resultSetType);
 
@@ -91,14 +91,14 @@ public class XMLStatementBuilder extends BaseBuilder {
     boolean resultOrdered = context.getBooleanAttribute("resultOrdered", false);
 
     // Include Fragments before parsing
+    // include解析
     XMLIncludeTransformer includeParser = new XMLIncludeTransformer(configuration, builderAssistant);
     includeParser.applyIncludes(context.getNode());
 
     // Parse selectKey after includes and remove them.
     /*
       selectKey节点用于支持数据库比如Oracle不支持自动生成主键，或者可能JDBC驱动不支持自动生成主键时的情况。
-      对于数据库支持自动生成主键的字段（比如MySQL和SQL Server），那么你可以设置useGeneratedKeys=”true”，而且设置keyProperty到你已经做好的目标属性上就可以了，
-      不需要使用selectKey节点。
+      对于数据库支持自动生成主键的字段（比如MySQL和SQL Server），可以设置useGeneratedKeys=”true”，而且设置keyProperty到目标属性上就可以了，不需要使用selectKey节点。
       由于selectKey可能包含在SQL片段中，所以需要先处理SQL片段节点，将包含的SQL片段替换展开，然后解析selectKey节点
      */
     processSelectKeyNodes(id, parameterTypeClass, langDriver);

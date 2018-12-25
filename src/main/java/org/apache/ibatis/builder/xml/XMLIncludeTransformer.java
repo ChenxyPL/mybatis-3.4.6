@@ -83,6 +83,7 @@ public class XMLIncludeTransformer {
       Properties toIncludeContext = getVariablesContext(source, variablesContext);
       applyIncludes(toInclude, toIncludeContext, true);
       if (toInclude.getOwnerDocument() != source.getOwnerDocument()) {
+        // 不在同一文件时在文件中插入引用的sql段
         toInclude = source.getOwnerDocument().importNode(toInclude, true);
       }
       source.getParentNode().replaceChild(toInclude, source);

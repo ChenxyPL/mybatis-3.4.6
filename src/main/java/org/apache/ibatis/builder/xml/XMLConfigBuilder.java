@@ -529,7 +529,7 @@ public class XMLConfigBuilder extends BaseBuilder {
           /*
             配置样例:
             <mappers>
-                <package name="org.mybatis.internal.example.mapper"/>
+                <package name="cn.com.cxy.mybatis.dao"/>
             </mappers>
            */
           String mapperPackage = child.getStringAttribute("name");
@@ -539,9 +539,9 @@ public class XMLConfigBuilder extends BaseBuilder {
           /*
             配置样例:
             <mappers>
-                <mapper resource="org/mybatis/internal/example/mapper/UserMapper.xml"/>
-                <mapper url="file:///org/mybatis/internal/example/mapper/UserMapper.xml"/>
-                <mapper class="org.mybatis.internal.example.mapper.UserMapper"/>
+                <mapper resource="cn/com/cxy/mybatis/dao/UserMapper.xml"/>
+                <mapper url="file:///cn/com/cxy/mybatis/dao/UserMapper.xml"/>
+                <mapper class="cn.com.cxy.mybatis.dao.UserMapper"/>
             </mappers>
            */
           String resource = child.getStringAttribute("resource");
