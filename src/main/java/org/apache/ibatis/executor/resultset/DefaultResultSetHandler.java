@@ -311,8 +311,7 @@ public class DefaultResultSetHandler implements ResultSetHandler {
                 // 处理非主记录 resultHandler传递null，RowBounds传递默认值，parentMapping不为空
                 handleRowValues(rsw, resultMap, null, RowBounds.DEFAULT, parentMapping);
             } else {
-                if (resultHandler == null) {
-                    // 处理主记录，这里有个疑问？？？问什么resultHandler不为空,就不需要添加到multipleREsults中
+                if (resultHandler == null) { // 处理主记录，这里有个疑问？？？ 问什么resultHandler不为空,就不需要添加到multipleREsults中
                     DefaultResultHandler defaultResultHandler = new DefaultResultHandler(objectFactory);
                     // 处理主记录，resultHander不为空,rowBounds不使用默认值,parentMapping传递null
                     handleRowValues(rsw, resultMap, defaultResultHandler, rowBounds, null);
@@ -405,7 +404,7 @@ public class DefaultResultSetHandler implements ResultSetHandler {
     private void skipRows(ResultSet rs, RowBounds rowBounds) throws SQLException {
         if (rs.getType() != ResultSet.TYPE_FORWARD_ONLY) {
             if (rowBounds.getOffset() != RowBounds.NO_ROW_OFFSET) {
-                rs.absolute(rowBounds.getOffset()); // ??? 为什么只有页码
+                rs.absolute(rowBounds.getOffset());
             }
         } else {
             for (int i = 0; i < rowBounds.getOffset(); i++) {
