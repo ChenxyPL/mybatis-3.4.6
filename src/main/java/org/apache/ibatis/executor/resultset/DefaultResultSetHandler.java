@@ -311,9 +311,9 @@ public class DefaultResultSetHandler implements ResultSetHandler {
                 // 处理非主记录 resultHandler传递null，RowBounds传递默认值，parentMapping不为空
                 handleRowValues(rsw, resultMap, null, RowBounds.DEFAULT, parentMapping);
             } else {
-                if (resultHandler == null) { // 处理主记录，这里有个疑问？？？ 问什么resultHandler不为空,就不需要添加到multipleREsults中
+                if (resultHandler == null) { // 处理主记录，只有主记录才会将解析的结果添加到multipleResults,返回的记录就是从multipleResults中获取
                     DefaultResultHandler defaultResultHandler = new DefaultResultHandler(objectFactory);
-                    // 处理主记录，resultHander不为空,rowBounds不使用默认值,parentMapping传递null
+                    // 处理主记录，resultHander不为空,rowBounds不使用默认值,parentMapping传递null；解析的结果放到defaultResultHandler中
                     handleRowValues(rsw, resultMap, defaultResultHandler, rowBounds, null);
                     multipleResults.add(defaultResultHandler.getResultList());
                 } else {
@@ -933,9 +933,9 @@ public class DefaultResultSetHandler implements ResultSetHandler {
         while (shouldProcessMoreRows(resultContext, rowBounds) && rsw.getResultSet().next()) {
             // 同主记录,先解析到鉴别器的最底层的ResultMap
             final ResultMap discriminatedResultMap = resolveDiscriminatedResultMap(rsw.getResultSet(), resultMap, null);
-            // 创建当前处理记录的rowKey，规则见下文
+            // 创建当前处理记录的rowKey
             final CacheKey rowKey = createRowKey(discriminatedResultMap, rsw, null);
-            // 根据rowKey获取嵌套结果对象map中对应的值，因为在处理主记录时存储进去了，具体见上面addPending的流程图，所以partialObject一般不会为空
+            // 根据rowKey获取嵌套结果对象map中对应的值，因为在处理主记录时存储进去了
             Object partialObject = nestedResultObjects.get(rowKey);
             // issue #577 && #542
             // 根据映射语句的结果集是否有序走不同的逻辑
@@ -970,7 +970,7 @@ public class DefaultResultSetHandler implements ResultSetHandler {
                                Object partialObject /*嵌套resultMap的记录*/) throws SQLException {
         final String resultMapId = resultMap.getId();
         Object rowValue = partialObject;
-        if (rowValue != null) { // 此时rowValue不应该空
+        if (rowValue != null) {
             final MetaObject metaObject = configuration.newMetaObject(rowValue);
             putAncestor(rowValue, resultMapId);
             applyNestedResultMappings(rsw, resultMap, metaObject, columnPrefix, combinedKey, false);
@@ -980,13 +980,15 @@ public class DefaultResultSetHandler implements ResultSetHandler {
             rowValue = createResultObject(rsw, resultMap, lazyLoader, columnPrefix);
             if (rowValue != null && !hasTypeHandlerForResultObject(rsw, resultMap.getType())) {
                 final MetaObject metaObject = configuration.newMetaObject(rowValue);
-                // 判断是否至少找到了一个不为null的属性值
                 boolean foundValues = this.useConstructorMappings;
                 if (shouldApplyAutomaticMappings(resultMap, true)) {
+                    // 自动映射
                     foundValues = applyAutomaticMappings(rsw, resultMap, metaObject, columnPrefix) || foundValues;
                 }
+                // 设置属性值
                 foundValues = applyPropertyMappings(rsw, resultMap, metaObject, lazyLoader, columnPrefix) || foundValues;
                 putAncestor(rowValue, resultMapId);
+                // 嵌套resultMap解析
                 foundValues = applyNestedResultMappings(rsw, resultMap, metaObject, columnPrefix, combinedKey, true) || foundValues;
                 ancestorObjects.remove(resultMapId);
                 foundValues = lazyLoader.size() > 0 || foundValues;
